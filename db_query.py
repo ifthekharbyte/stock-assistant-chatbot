@@ -13,8 +13,8 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 
-from agent import AgentCallRecord
 from db_init import get_db_connection
+from models import AgentCallRecord
 
 
 @dataclass

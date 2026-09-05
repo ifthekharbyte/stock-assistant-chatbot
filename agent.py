@@ -34,12 +34,11 @@ import json
 import os
 import re
 import time
-from dataclasses import dataclass, field
-from datetime import datetime
 
 from dotenv import load_dotenv
 
 from evaluation_utils import DEFAULT_MODEL, calc_price, get_client, responses_create_retry
+from models import AgentCallRecord
 from tools import TOOL_SCHEMAS, call_tool
 
 load_dotenv()
@@ -99,27 +98,6 @@ def _strip_stray_citations(text: str) -> str:
     """
     cleaned = _STRAY_CITATION_RE.sub("", text)
     return re.sub(r" {2,}", " ", cleaned).strip()
-
-
-@dataclass
-class AgentCallRecord:
-    """
-    Mirrors 05-monitoring/code/metrics.py's LLMCallRecord, with one
-    addition (`tool_calls`) since this agent's "context" comes from
-    live tool calls instead of a fixed search index.
-    """
-
-    model: str
-    question: str
-    instructions: str
-    answer: str
-    tool_calls: list
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
-    response_time: float
-    cost: float
-    timestamp: datetime = field(default_factory=datetime.now)
 
 
 def agent_loop(

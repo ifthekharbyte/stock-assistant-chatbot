@@ -90,6 +90,7 @@ stock-chat-assistant/
 ├── db_documents.py                 # Postgres helpers for `documents`
 ├── tools.py                         # tool functions + JSON schemas for the LLM
 ├── agent.py                          # the agent loop + ToyAIKit runner
+├── models.py                          # shared dataclasses (no API-client deps)
 ├── judge.py                           # relevance judge, run on every turn
 ├── evaluation_utils.py                 # shared LLM-call helpers
 ├── db_init.py                           # schema (conversations, feedback, documents)
@@ -154,6 +155,11 @@ Open http://localhost:8501 and try things like:
 - "Any recent news on NVDA?"
 - "What's Coca-Cola's dividend history?"
 
+![Chat example](docs/screenshot-chat.png)
+
+Every answer is logged, scored for relevance, and shown with which tools the
+agent actually called (expand "Tools used" above).
+
 Or run the whole stack in Docker:
 
 ```bash
@@ -163,6 +169,8 @@ docker compose up --build
 This gives you the chat app on `:8501`, the dashboard on `:8502`, and Grafana on
 `:3000` (`admin`/`admin`) — point Grafana at the `postgres` service if you want
 richer charts or alerting than the built-in dashboard.
+
+![Monitoring dashboard](docs/screenshot-dashboard.png)
 
 Other useful commands:
 
@@ -200,23 +208,21 @@ question actually needs (`tools.py`'s `_compact_bars` / `_compact_news`) and
 requests retry with backoff, but running the full eval suite back-to-back several
 times in one day will still eventually hit the daily cap.
 
-## Covers the course rubric
+## What's implemented
 
-Scored against [project.md](https://github.com/DataTalksClub/llm-zoomcamp/blob/main/project.md):
+- A knowledge base built from real ingested data, not just live API pass-through —
+  the agent picks between the two depending on the question.
+- Retrieval evaluation comparing keyword, vector, and hybrid search.
+- Agent evaluation judging both the final answer and the tool calls that produced
+  it (currently one model/prompt — no comparison across models yet).
+- A Streamlit chat interface.
+- An ingestion pipeline (`ingest_kb.py`) with an optional Kestra flow for running
+  it on a schedule.
+- Feedback logging (automatic + user thumbs up/down) and a monitoring dashboard.
+- Full containerization — one `docker-compose.yaml` for the whole stack.
+- Hybrid search, evaluated — no reranking or query rewriting yet.
 
-- **Problem description** — above.
-- **Retrieval flow** — knowledge base + LLM (see Architecture).
-- **Retrieval evaluation** — `eval/search_evaluation.py`.
-- **LLM evaluation** — `eval/evaluate.py`. Only one model/prompt is compared so far.
-- **Interface** — the Streamlit app.
-- **Ingestion pipeline** — `ingest_kb.py`, plus a Kestra flow for full automation
-  (untested against a live instance).
-- **Monitoring** — feedback logging + dashboard, both verified against real data.
-- **Containerization** — `docker-compose.yaml`, built and run end-to-end.
-- **Reproducibility** — this README, `.env.example`, pinned deps, `Makefile`.
-- **Best practices** — hybrid search, evaluated. No reranking or query rewriting yet.
-
-Not done: comparing multiple models/prompts for the LLM eval, and cloud deployment.
+Not done yet: comparing multiple models/prompts, and a cloud deployment.
 
 ## Limitations
 
@@ -225,5 +231,6 @@ Not done: comparing multiple models/prompts for the LLM eval, and cloud deployme
   built for scale, it's built to run on free tiers without falling over.
 - This is factual market data, not investment advice, and the system prompt says
   so explicitly.
-- The Kestra flow and a full browser click-through of the chat UI haven't been
-  tested end-to-end; everything else described above has.
+- Free-tier rate limits mean the agent sometimes falls back to older or delayed
+  data instead of the live number a question asked for — it says so when that
+  happens rather than guessing.
