@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+eval/ground_truth.csv
+eval/agent_answers.csv
+eval/agent_evaluations.csv
+eval/search_ground_truth.csv
+eval/search_evaluation_results.csv
+.ipynb_checkpoints/
+.streamlit/secrets.toml
+uv.lock
+
+# ONNX embedding model, downloaded locally by download_embedding_model.py
+# (~87MB) -- see 02-vector-search/lessons/09-onnx-embedder.md
+models/

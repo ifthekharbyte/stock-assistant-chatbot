@@ -1,0 +1,53 @@
+[project]
+name = "stock-chat-assistant"
+version = "0.1.0"
+description = "Agentic stock market chatbot powered by the Massive Stock Market API"
+readme = "README.md"
+requires-python = ">=3.12"
+# Everything below is imported (directly or lazily) somewhere in the
+# actual running app/dashboard/eval scripts -- audited by grepping every
+# top-level import across app.py, agent.py, tools.py, massive_client.py,
+# judge.py, evaluation_utils.py, knowledge_base.py, embedder.py, all
+# db_*.py, ingest_kb.py, download_embedding_model.py, and
+# monitoring/dashboard.py. See the two dependency-groups below for what
+# is deliberately excluded from this list, and why.
+dependencies = [
+    "openai>=2.37.0",          # agent.py, judge.py, eval/*.py (Groq via OpenAI SDK)
+    "python-dotenv>=1.2.2",     # agent.py (load_dotenv)
+    "requests>=2.28.1",          # massive_client.py (Massive API calls)
+    "streamlit>=1.58.0",          # app.py, monitoring/dashboard.py (the UI itself)
+    "pandas>=2.2.0",                # monitoring/dashboard.py, eval/*.py (dataframes)
+    "psycopg[binary]>=3.3.4",        # db_init.py (Postgres connection)
+    "pydantic>=2.9.0",                # judge.py, eval/*.py (structured LLM output)
+    "tqdm>=4.67.0",                    # evaluation_utils.py (map_progress)
+    "minsearch>=0.0.11",                # knowledge_base.py (keyword search)
+    "numpy>=1.26.0",                     # embedder.py (vector math)
+    "onnxruntime>=1.20.0",                # embedder.py (runs the embedding model)
+    "tokenizers>=0.20.0",                  # embedder.py (tokenizes text for the model)
+    "huggingface-hub>=0.26.0",              # download_embedding_model.py (one-time model download)
+]
+
+[dependency-groups]
+# Only "dev" is installed by default alongside `dependencies` above when
+# you run plain `uv sync` -- uv's own default behavior, verified while
+# making this change (`uv sync` pulled dev-group pytest automatically;
+# a separately named group did not, until explicitly requested with
+# `--group <name>`). Docker uses `uv sync --no-dev` to skip even this.
+dev = [
+    "pytest>=8.3.0",
+]
+
+# NOT installed by `uv sync` (default) or by Docker at all -- only
+# needed to open/run notebooks/explore_agent.ipynb locally. Both are
+# genuinely heavy: `jupyter` alone pulls in ~60+ transitive packages
+# (ipykernel, jupyter-client/core, ipython, pyzmq, tornado, debugpy,
+# etc. -- confirmed via `uv tree --package jupyter`), and `toyaikit`
+# additionally pulls in the full Anthropic SDK + a pricing-lookup
+# package + ipython, none of which app.py or any other runtime file
+# imports (agent.py only imports toyaikit lazily, inside
+# build_toyaikit_runner(), which nothing in the running app calls).
+# Run `uv sync --group notebook` locally if you want the notebook.
+notebook = [
+    "jupyter>=1.1.1",
+    "toyaikit>=0.0.11",
+]

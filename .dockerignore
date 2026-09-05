@@ -1,0 +1,45 @@
+# Without this file, `docker build` / `docker compose up --build` sends
+# your ENTIRE project directory to the Docker daemon as "build context"
+# before it even starts building -- including any local .venv, .git
+# history, caches, and downloaded model weights. That's almost
+# certainly what the slow "transferring context: 1.21GB" step was.
+# None of this needs to be sent; the Dockerfile only needs your source
+# files (the ONNX model itself is downloaded fresh inside the build,
+# see the Dockerfile's RUN download_embedding_model.py step -- so the
+# host's local models/ never needs to travel into the image either).
+
+.venv/
+.git/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Local env/secrets -- never send these into a build context
+.env
+.env.*
+!.env.example
+
+# Local data / caches
+data/*.db
+data/conversations.db
+*.sqlite3
+
+# Locally downloaded ONNX embedding model -- the Docker build downloads
+# its own copy fresh (see Dockerfile), so the host's copy is dead weight
+# in the build context.
+models/
+.cache/
+huggingface/
+
+# Editor/OS cruft
+.DS_Store
+.idea/
+.vscode/
+
+# Kestra and eval outputs, not needed inside the app image
+kestra/
+eval/*.csv
+eval/*.json
+notebooks/.ipynb_checkpoints/

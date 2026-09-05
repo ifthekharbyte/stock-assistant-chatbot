@@ -1,0 +1,6 @@
+# Minimal deps for ingest_kb.py, used by the Kestra Python task in
+# kestra/flows/ingest_kb.yaml. Kestra's script runner uses plain pip,
+# not uv, and ingestion doesn't need the heavier deps (streamlit,
+# sentence-transformers, etc.) that the full app/pyproject.toml carries.
+requests>=2.28.1
+psycopg[binary]>=3.3.4

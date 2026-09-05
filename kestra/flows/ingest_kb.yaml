@@ -1,0 +1,57 @@
+id: ingest_kb
+namespace: stock-assistant
+
+description: |
+  Scheduled ingestion for the stock-chat-assistant knowledge base.
+  Runs ingest_kb.py, which pulls company overviews + news for
+  data/watchlist.json from the Massive API and upserts them into the
+  `documents` Postgres table (see db_documents.py).
+
+  This flow needs the project's Python files available as Kestra
+  namespace files before it can run -- see kestra/README.md for how to
+  sync them. It's a plain io.kestra.plugin.scripts.python.Commands task
+  on a Schedule trigger, unlike the course's 03-orchestration example
+  flows, which all use io.kestra.plugin.ai.agent.AIAgent for LLM
+  orchestration demos rather than running an external script.
+
+  NOT verified against a running Kestra instance -- see the main
+  README's "What I've verified" section.
+
+inputs:
+  - id: watchlist_path
+    displayName: Watchlist file
+    type: STRING
+    defaults: data/watchlist.json
+
+tasks:
+  - id: run_ingestion
+    type: io.kestra.plugin.scripts.python.Commands
+    description: Install minimal deps and run ingest_kb.py against Postgres
+    namespaceFiles:
+      enabled: true
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: IF_NOT_PRESENT
+    containerImage: python:3.12-slim
+    env:
+      MASSIVE_API_KEY: "{{ secret('MASSIVE_API_KEY') }}"
+      POSTGRES_HOST: stock-assistant-pg
+      POSTGRES_DB: stock_assistant
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: "{{ secret('POSTGRES_PASSWORD') }}"
+    commands:
+      - pip install --no-cache-dir -r requirements-ingest.txt
+      - python ingest_kb.py
+
+  - id: log_result
+    type: io.kestra.plugin.core.log.Log
+    message: |
+      Ingestion run complete for watchlist {{ inputs.watchlist_path }}.
+      Check the run_ingestion task's logs above for document counts.
+
+triggers:
+  - id: daily_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    # 11:00 UTC ~ before US market open (adjust for your timezone / DST)
+    cron: "0 11 * * 1-5"
+    disabled: true # flip to false once you've run this manually and trust it

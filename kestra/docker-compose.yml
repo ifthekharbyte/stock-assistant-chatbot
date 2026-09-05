@@ -1,0 +1,86 @@
+# Kestra, adapted from the course's 03-orchestration/docker-compose.yml.
+# Differences from the course version:
+# - Drops the `kestra.ai` / Gemini / Tavily config entirely -- we don't
+#   use Kestra's AI-agent plugin here, just its Schedule trigger + a
+#   plain Python script task (see flows/ingest_kb.yaml).
+# - Joins the `monitoring` external network so the ingestion task can
+#   reach our app's Postgres by container name. Start that network +
+#   Postgres first (from the project root): `make network && make postgres`.
+#
+# Usage (from this kestra/ directory):
+#   docker compose up -d
+#   open http://localhost:8080  (login: admin@kestra.io / Admin1234!)
+#
+# NOT verified against a running Kestra instance -- see the README's
+# "What I've verified" section. This is Kestra's standard standalone
+# setup adapted in the way the docs describe, but I don't have Docker
+# available in the environment I built this in.
+
+volumes:
+  kestra_postgres_data:
+    driver: local
+  kestra_data:
+    driver: local
+
+networks:
+  default:
+    name: monitoring
+    external: true
+
+services:
+  kestra_postgres:
+    image: postgres:18
+    volumes:
+      - kestra_postgres_data:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: kestra
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: k3str4
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  kestra:
+    image: kestra/kestra:v1.3.21
+    pull_policy: always
+    user: "root"
+    command: server standalone
+    volumes:
+      - kestra_data:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/kestra-wd:/tmp/kestra-wd
+    environment:
+      SECRET_MASSIVE_API_KEY: ${SECRET_MASSIVE_API_KEY}
+      SECRET_POSTGRES_PASSWORD: ${SECRET_POSTGRES_PASSWORD}
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://kestra_postgres:5432/kestra
+            driverClassName: org.postgresql.Driver
+            username: kestra
+            password: k3str4
+        kestra:
+          server:
+            basicAuth:
+              username: "admin@kestra.io"
+              password: Admin1234!
+          repository:
+            type: postgres
+          storage:
+            type: local
+            local:
+              basePath: "/app/storage"
+          queue:
+            type: postgres
+          tasks:
+            tmpDir:
+              path: /tmp/kestra-wd/tmp
+          url: http://localhost:8080/
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    depends_on:
+      kestra_postgres:
+        condition: service_started
