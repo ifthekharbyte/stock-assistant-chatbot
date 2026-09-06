@@ -197,11 +197,10 @@ Open http://localhost:8501 and try things like:
 
 Every answer is logged, scored for relevance, and shown with which tools the
 agent actually called (expand "Tools used" above). Right after the answer, a
-judge LLM scores it — that's the "Scoring relevance..." spinner below, which
-resolves to a 🟢/🟡/🔴 badge (see the `get_top_movers` and `get_dividends`
-examples further down for what that looks like once it lands):
+judge LLM scores it — a brief "Scoring relevance..." spinner resolves into a
+🟢/🟡/🔴 badge next to the response time, token count, and cost:
 
-![Scoring relevance in progress](docs/tools/get_market_status.png)
+![Resolved relevance score](docs/tools/get_dividends.png)
 
 Or run the whole stack in Docker:
 
