@@ -50,6 +50,41 @@ can call:
 | `get_dividends` | `GET /stocks/v1/dividends` |
 | `search_company_knowledge_base` | hybrid search over the ingested overviews + news |
 
+<details>
+<summary>Each tool in action (real conversations, click to expand)</summary>
+
+**get_market_status** — "Is the U.S. stock market open right now?"
+![get_market_status](docs/tools/get_market_status.png)
+
+**get_stock_snapshot** — "What's Microsoft trading at right now, including today's range?"
+![get_stock_snapshot](docs/tools/get_stock_snapshot.png)
+
+**get_previous_close** — "What was Tesla's open, high, low, close and volume yesterday?"
+![get_previous_close](docs/tools/get_previous_close.png)
+
+**get_price_history** — "Show me Apple's daily closing prices for the last 10 days."
+![get_price_history](docs/tools/get_price_history.png)
+
+**get_company_overview** — "What exchange does Netflix trade on, and what's its market cap?"
+![get_company_overview](docs/tools/get_company_overview.png)
+
+**get_top_movers** — "What are today's biggest gaining stocks?" (free plan doesn't include this
+endpoint — the agent explains the limitation instead of guessing, and the judge correctly
+flags the answer as not relevant)
+![get_top_movers](docs/tools/get_top_movers.png)
+
+**get_stock_news** — "What's the latest news on Google?"
+![get_stock_news](docs/tools/get_stock_news.png)
+
+**get_dividends** — "What are IBM's most recent dividend payments?"
+![get_dividends](docs/tools/get_dividends.png)
+
+**search_company_knowledge_base** — "What does Coca-Cola do as a company, and why might it be
+in the news?"
+![search_company_knowledge_base](docs/tools/search_company_knowledge_base.png)
+
+</details>
+
 Get a free key at [massive.com/dashboard/signup](https://massive.com/dashboard/signup).
 A few limits on the free plan are worth knowing about up front (see
 [massive.com/pricing](https://massive.com/pricing)): **5 requests/minute**, **2 years
