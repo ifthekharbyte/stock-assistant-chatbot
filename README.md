@@ -192,6 +192,7 @@ Open http://localhost:8501 and try things like:
 
 ![Chat example](docs/screenshot-chat.png)
 
+**"Any recent news on NVDA?"**
 ![Chat example — news](docs/screenshot-chat-3.png)
 
 Every answer is logged, scored for relevance, and shown with which tools the
