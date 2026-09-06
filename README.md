@@ -196,7 +196,12 @@ Open http://localhost:8501 and try things like:
 ![Chat example — news](docs/screenshot-chat-3.png)
 
 Every answer is logged, scored for relevance, and shown with which tools the
-agent actually called (expand "Tools used" above).
+agent actually called (expand "Tools used" above). Right after the answer, a
+judge LLM scores it — that's the "Scoring relevance..." spinner below, which
+resolves to a 🟢/🟡/🔴 badge (see the `get_top_movers` and `get_dividends`
+examples further down for what that looks like once it lands):
+
+![Scoring relevance in progress](docs/tools/get_market_status.png)
 
 Or run the whole stack in Docker:
 
