@@ -192,6 +192,8 @@ Open http://localhost:8501 and try things like:
 
 ![Chat example](docs/screenshot-chat.png)
 
+![Chat example — news](docs/screenshot-chat-3.png)
+
 Every answer is logged, scored for relevance, and shown with which tools the
 agent actually called (expand "Tools used" above).
 
@@ -238,10 +240,19 @@ duplicate tool call.
 
 Both API providers' free tiers are easy to run into during evaluation: Groq's
 free tier caps output at 8,000 tokens/minute *shared across all concurrent
-requests*, and 200,000 tokens/day. Tool responses are trimmed to the fields a
-question actually needs (`tools.py`'s `_compact_bars` / `_compact_news`) and
-requests retry with backoff, but running the full eval suite back-to-back several
-times in one day will still eventually hit the daily cap.
+requests*, and 200,000 tokens/day; Massive caps at 5 requests/minute. Tool
+responses are trimmed to the fields a question actually needs (`tools.py`'s
+`_compact_bars` / `_compact_news`), and both clients pace themselves
+proactively instead of just reacting after the fact: `massive_client.py`
+tracks a sliding window of the last 5 calls and only pauses once a 6th
+would land within 60 seconds of the oldest one (so a normal 2-4-call turn
+never waits at all), and `evaluation_utils.py` reads Groq's own
+`x-ratelimit-remaining-tokens` header on every response and pre-emptively
+sleeps out the window if it's running low. The one thing neither can do
+anything about is Groq's *daily* cap — once that's actually exhausted,
+`responses_create_retry` detects it and fails fast with a clear error
+instead of burning ~105s cycling through retries that can't possibly
+succeed for another ~15 minutes.
 
 ## What's implemented
 

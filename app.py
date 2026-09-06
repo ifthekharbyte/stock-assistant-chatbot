@@ -20,10 +20,12 @@ from db_feedback import save_feedback
 from db_init import init_db
 from db_save import save_conversation
 from judge import evaluate_relevance
+from tools import warm_up_knowledge_base
 
 st.set_page_config(page_title="Stock Market Assistant", page_icon="📈")
 
 init_db()
+warm_up_knowledge_base()
 
 st.title("📈 Stock Market Assistant")
 st.caption("Live data via the Massive Stock Market API — ask about prices, trends, news, and more.")

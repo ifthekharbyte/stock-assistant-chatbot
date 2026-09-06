@@ -40,6 +40,20 @@ def _get_kb():
     return _kb
 
 
+def warm_up_knowledge_base():
+    """
+    Build the knowledge base's keyword + vector indexes now instead of on
+    the first search_company_knowledge_base call. Both indexes are built
+    lazily on first search (see KnowledgeBase._ensure_keyword_index /
+    _ensure_doc_matrix), so just loading the documents isn't enough to
+    front-load the cost -- a real (harmless, empty-query) search is needed
+    to actually trigger that work. Call this once at app startup so the
+    cost lands on process boot instead of on whichever user's turn happens
+    to ask the first qualitative question.
+    """
+    _get_kb().hybrid_search("", num_results=1)
+
+
 def get_market_status() -> dict:
     """
     Get whether US stock markets are currently open, closed, in

@@ -23,10 +23,11 @@ guessed. Update it if you change MODEL_NAME to a different model.
 """
 
 import os
+import re
 import time
 
 from dotenv import load_dotenv
-from openai import OpenAI, RateLimitError
+from openai import APIStatusError, OpenAI, RateLimitError
 from tqdm.auto import tqdm
 
 load_dotenv()
@@ -36,6 +37,12 @@ DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 PRICE_PER_1M_INPUT = 0.15
 PRICE_PER_1M_OUTPUT = 0.60
+
+# Below this many tokens left in the current tokens-per-minute window, pause
+# before the next call instead of risking a 413 -- a compacted tool result
+# plus growing conversation history can still add up to more than this on a
+# multi-tool-call turn (e.g. comparing two tickers).
+GROQ_TOKEN_SAFETY_BUFFER = 3000
 
 
 def get_client() -> OpenAI:
@@ -67,21 +74,55 @@ def calc_total_price(usages) -> float:
     return sum(calc_price(u)["total_cost"] for u in usages)
 
 
+class GroqDailyLimitExceeded(RuntimeError):
+    """
+    Raised when Groq's daily token cap (TPD, not the per-minute TPM one) is
+    hit. Confirmed directly: this project's free-tier key ran dry mid-turn
+    with "Please try again in 13m45.12s" -- no realistic retry/backoff
+    schedule bridges that, so retrying just burns ~105s (our full 6-attempt
+    backoff schedule) before failing anyway. Fail fast instead.
+    """
+
+
+def _parse_groq_duration(text: str) -> float:
+    """Parse Groq's rate-limit reset strings, e.g. '1.822s', '46m4.8s', '1h2m3s'."""
+    match = re.match(r"(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?$", text.strip())
+    if not match or not any(match.groups()):
+        return 5.0
+    hours, minutes, seconds = match.groups()
+    return int(hours or 0) * 3600 + int(minutes or 0) * 60 + float(seconds or 0)
+
+
 def responses_create_retry(client, max_retries=6, base_backoff=5, **kwargs):
     """
-    client.responses.create(**kwargs), retrying on Groq/OpenAI 429s.
+    client.responses.create(**kwargs), with two layers of Groq rate-limit
+    handling:
 
-    Groq's free tier enforces a low tokens-per-minute cap that's easy to
-    hit with a full tool schema resent every turn (see agent.py) or a few
-    concurrent eval workers (see eval/evaluate.py) -- without this, either
-    surfaces the raw RateLimitError to the user/caller instead of just
-    waiting out the window.
+    1. Proactive: Groq returns x-ratelimit-remaining-tokens / -reset-tokens
+       on every response. If a call leaves the current tokens-per-minute
+       window nearly exhausted, sleep out the reset before returning, so
+       the *next* call (agent.py's next loop iteration) doesn't have to
+       find out the hard way. This is what actually speeds up multi-tool-
+       call turns like comparing two tickers -- confirmed directly, a
+       comparison question that used to time out completes without ever
+       hitting a 429/413 once this pre-emptive check is in place.
+    2. Reactive fallback: retry on an actual 429 (RateLimitError) or Groq's
+       413 "request too large for the remaining window" (a plain
+       APIStatusError, not a RateLimitError -- confirmed directly, this
+       project's TPM cap has been hit for real many times), honoring
+       Retry-After when present.
     """
     for attempt in range(max_retries + 1):
         try:
-            return client.responses.create(**kwargs)
-        except RateLimitError as e:
-            if attempt == max_retries:
+            raw = client.responses.with_raw_response.create(**kwargs)
+        except (RateLimitError, APIStatusError) as e:
+            if "(TPD)" in str(e):
+                raise GroqDailyLimitExceeded(
+                    "Groq's daily token limit is used up for this API key -- retrying won't "
+                    f"help for a while. Original error: {e}"
+                ) from e
+            is_rate_limit = isinstance(e, RateLimitError) or getattr(e, "status_code", None) == 413
+            if not is_rate_limit or attempt == max_retries:
                 raise
             retry_after = None
             response = getattr(e, "response", None)
@@ -91,6 +132,13 @@ def responses_create_retry(client, max_retries=6, base_backoff=5, **kwargs):
                 except (TypeError, ValueError):
                     retry_after = None
             time.sleep(retry_after if retry_after is not None else base_backoff * (attempt + 1))
+            continue
+
+        remaining = raw.headers.get("x-ratelimit-remaining-tokens")
+        reset = raw.headers.get("x-ratelimit-reset-tokens")
+        if remaining is not None and reset is not None and int(remaining) < GROQ_TOKEN_SAFETY_BUFFER:
+            time.sleep(_parse_groq_duration(reset))
+        return raw.parse()
 
 
 def llm_structured(client, instructions, user_prompt, output_type, model=DEFAULT_MODEL):

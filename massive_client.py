@@ -16,6 +16,7 @@ Docs: https://massive.com/docs/rest/quickstart
 
 import os
 import time
+from collections import deque
 from datetime import date, timedelta
 
 import requests
@@ -28,6 +29,18 @@ BASE_URL = "https://api.massive.com"
 # giving up on the first hit.
 MAX_RETRIES = 5
 BASE_BACKOFF_SECONDS = 15
+
+# Proactively stay under the free tier's 5 requests/60s cap with a sliding
+# window instead of firing immediately and only reacting after a 429: track
+# the timestamps of the last RATE_LIMIT_MAX_CALLS requests, and only sleep
+# once a 6th call would land inside the same 60s window as the oldest of
+# the last 5. This lets a normal turn (2-4 tool calls) fire back-to-back
+# with no artificial delay at all, while a heavier one (e.g. "compare TSLA
+# and RIVN", which needs several calls) still never trips the real limit --
+# strictly better than pacing every single call at a flat interval, which
+# delays small turns for no reason.
+RATE_LIMIT_MAX_CALLS = 5
+RATE_LIMIT_WINDOW_SECONDS = 60.0
 
 
 class MassiveAPIError(RuntimeError):
@@ -46,10 +59,22 @@ class MassiveClient:
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
+        self._recent_request_times: deque[float] = deque(maxlen=RATE_LIMIT_MAX_CALLS)
+
+    def _wait_for_rate_limit_slot(self):
+        now = time.monotonic()
+        if len(self._recent_request_times) == RATE_LIMIT_MAX_CALLS:
+            oldest = self._recent_request_times[0]
+            elapsed = now - oldest
+            if elapsed < RATE_LIMIT_WINDOW_SECONDS:
+                time.sleep(RATE_LIMIT_WINDOW_SECONDS - elapsed)
+        self._recent_request_times.append(time.monotonic())
 
     def _get(self, path: str, params: dict | None = None) -> dict:
         url = f"{self.base_url}{path}"
         for attempt in range(MAX_RETRIES + 1):
+            self._wait_for_rate_limit_slot()
+
             resp = self.session.get(url, params=params or {}, timeout=self.timeout)
             if resp.status_code == 429 and attempt < MAX_RETRIES:
                 wait = float(resp.headers.get("Retry-After", BASE_BACKOFF_SECONDS * (attempt + 1)))
